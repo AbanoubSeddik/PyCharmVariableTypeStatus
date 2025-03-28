@@ -8,15 +8,21 @@ import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidget.TextPresentation
 import com.intellij.psi.util.PsiTreeUtil
-import com.jetbrains.python.psi.PyExpression
+import com.jetbrains.python.psi.*
 import com.jetbrains.python.psi.types.TypeEvalContext
 import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiTreeChangeAdapter
+import com.intellij.psi.PsiTreeChangeEvent
+import com.intellij.psi.PsiManager
 import java.awt.event.MouseEvent
+import java.util.WeakHashMap
 
-class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentation {
+class VariableTypeStatusBar(private val project: Project) : StatusBarWidget, TextPresentation {
 
     private var currentType: String = "Unknown"
     private var statusBar: StatusBar? = null
+    private val typeCache = WeakHashMap<PsiElement, String>()
 
     init {
         EditorFactory.getInstance().eventMulticaster.addCaretListener(object : CaretListener {
@@ -24,6 +30,12 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
                 updateVariableType(event)
             }
         }, project)
+
+        PsiManager.getInstance(project).addPsiTreeChangeListener(object : PsiTreeChangeAdapter() {
+            override fun childrenChanged(event: PsiTreeChangeEvent) {
+                typeCache.clear()
+            }
+        }, this)
     }
 
     private fun updateVariableType(event: CaretEvent) {
@@ -33,13 +45,7 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
         val document = editor.document
 
         try {
-            val psiFile = PsiDocumentManager.getInstance(project).getPsiFile(document)
-
-            if (psiFile == null) {
-                currentType = "No PSI"
-                statusBar?.updateWidget(ID())
-                return
-            }
+            val psiFile = PsiDocumentManager.getInstance(project).getPsiFile(document) ?: return
 
             if (!psiFile.language.id.contains("Python", ignoreCase = true)) {
                 currentType = "Not Python"
@@ -47,23 +53,20 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
                 return
             }
 
-            val elementAtCaret = psiFile.findElementAt(caretOffset)
+            val elementAtCaret = psiFile.findElementAt(caretOffset) ?: return
 
-            if (elementAtCaret == null) {
-                currentType = "No Element"
+            if (typeCache.containsKey(elementAtCaret)) {
+                currentType = "Cached: ${typeCache[elementAtCaret]}"
                 statusBar?.updateWidget(ID())
                 return
             }
 
-            val pyExpression = PsiTreeUtil.getParentOfType(elementAtCaret, PyExpression::class.java, false)
+            val context = TypeEvalContext.userInitiated(project, psiFile)
 
-            if (pyExpression != null) {
-                val context = TypeEvalContext.userInitiated(project, psiFile)
-                val exprType = context.getType(pyExpression)
-                currentType = exprType?.name ?: "Unknown Type"
-            } else {
-                currentType = "No Variable"
-            }
+            currentType = inferType(elementAtCaret, context) ?: "Unknown Type"
+
+            typeCache[elementAtCaret] = currentType
+
         } catch (e: Exception) {
             currentType = "Error: ${e.message}"
         }
@@ -71,12 +74,26 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
         statusBar?.updateWidget(ID())
     }
 
+    private fun inferType(element: PsiElement, context: TypeEvalContext): String? {
+        val pyExpression = PsiTreeUtil.getParentOfType(element, PyExpression::class.java, false)
+        if (pyExpression != null) {
+            return context.getType(pyExpression)?.name
+        }
+
+        val pyFunction = PsiTreeUtil.getParentOfType(element, PyFunction::class.java, false)
+        if (pyFunction != null) {
+            return context.getReturnType(pyFunction)?.name ?: "Unknown Return Type"
+        }
+
+        return null
+    }
+
     override fun ID() = "VariableTypeStatusBar"
     override fun getPresentation(): StatusBarWidget.WidgetPresentation = this
     override fun getAlignment(): Float = 0.5f
 
     override fun getText(): String = "Type: $currentType"
-    override fun getTooltipText(): String = "Displays the type of the variable under the caret"
+    override fun getTooltipText(): String = "Displays the type of the variable or function under the caret"
 
     override fun getClickConsumer(): com.intellij.util.Consumer<MouseEvent>? = null
 
