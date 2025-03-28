@@ -60,7 +60,19 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
             if (pyExpression != null) {
                 val context = TypeEvalContext.userInitiated(project, psiFile)
                 val exprType = context.getType(pyExpression)
-                currentType = exprType?.name ?: "Unknown Type"
+                val scope = when {
+                    PsiTreeUtil.getParentOfType(pyExpression, com.jetbrains.python.psi.PyFunction::class.java) != null -> "Local"
+                    PsiTreeUtil.getParentOfType(pyExpression, com.jetbrains.python.psi.PyClass::class.java) != null -> "Class-level"
+                    else -> "Global"
+                }
+                currentType = "$scope: ${exprType?.name ?: "Unknown Type"}"
+                val variableName = pyExpression.text
+                val occurrences = psiFile.text.split(Regex("\\b$variableName\\b")).size - 1
+                if (occurrences == 1) {
+                    currentType += " (Unused)"
+                } else if (occurrences > 1) {
+                    currentType += " (Reassigned)"
+                }
             } else {
                 currentType = "No Variable"
             }
