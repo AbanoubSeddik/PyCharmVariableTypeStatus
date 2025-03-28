@@ -11,6 +11,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.jetbrains.python.psi.PyExpression
 import com.jetbrains.python.psi.types.TypeEvalContext
 import com.intellij.psi.PsiDocumentManager
+import com.jetbrains.python.psi.PyFunction
 import java.awt.event.MouseEvent
 
 class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentation {
@@ -47,10 +48,15 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
                 return
             }
 
-            val elementAtCaret = psiFile.findElementAt(caretOffset)
+            val elementAtCaret = psiFile.findElementAt(caretOffset) ?: return
+            val context = TypeEvalContext.userInitiated(project, psiFile)
 
-            if (elementAtCaret == null) {
-                currentType = "No Element"
+            val pyFunction = PsiTreeUtil.getParentOfType(elementAtCaret, PyFunction::class.java, false)
+            if (pyFunction != null &&
+                (pyFunction.identifyingElement == elementAtCaret ||
+                        PsiTreeUtil.isAncestor(pyFunction, elementAtCaret, false))) {
+                val returnType = context.getReturnType(pyFunction)
+                currentType = "Function Return: ${returnType?.name ?: "Unknown"}"
                 statusBar?.updateWidget(ID())
                 return
             }
@@ -58,7 +64,6 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
             val pyExpression = PsiTreeUtil.getParentOfType(elementAtCaret, PyExpression::class.java, false)
 
             if (pyExpression != null) {
-                val context = TypeEvalContext.userInitiated(project, psiFile)
                 val exprType = context.getType(pyExpression)
                 currentType = exprType?.name ?: "Unknown Type"
             } else {
@@ -66,6 +71,7 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
             }
         } catch (e: Exception) {
             currentType = "Error: ${e.message}"
+            statusBar?.updateWidget(ID())
         }
 
         statusBar?.updateWidget(ID())
@@ -76,7 +82,7 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
     override fun getAlignment(): Float = 0.5f
 
     override fun getText(): String = "Type: $currentType"
-    override fun getTooltipText(): String = "Displays the type of the variable under the caret"
+    override fun getTooltipText(): String = "Displays the type of the variable or function return type under the caret"
 
     override fun getClickConsumer(): com.intellij.util.Consumer<MouseEvent>? = null
 
