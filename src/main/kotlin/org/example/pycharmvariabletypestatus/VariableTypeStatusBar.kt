@@ -3,7 +3,7 @@ package org.example.pycharmvariabletypestatus
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.CaretListener
 import com.intellij.openapi.editor.event.CaretEvent
-import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidget.TextPresentation
@@ -13,17 +13,18 @@ import com.jetbrains.python.psi.types.TypeEvalContext
 import com.intellij.psi.PsiDocumentManager
 import java.awt.event.MouseEvent
 
-class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentation {
+class VariableTypeStatusBar : StatusBarWidget, TextPresentation {
 
     private var currentType: String = "Unknown"
     private var statusBar: StatusBar? = null
+    private val disposable = Disposer.newDisposable("VariableTypeStatusBarDisposable")
 
     init {
         EditorFactory.getInstance().eventMulticaster.addCaretListener(object : CaretListener {
             override fun caretPositionChanged(event: CaretEvent) {
                 updateVariableType(event)
             }
-        }, project)
+        }, disposable)
     }
 
     private fun updateVariableType(event: CaretEvent) {
@@ -85,6 +86,6 @@ class VariableTypeStatusBar(project: Project) : StatusBarWidget, TextPresentatio
     }
 
     override fun dispose() {
-        statusBar = null
+        Disposer.dispose(disposable)
     }
 }

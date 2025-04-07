@@ -4,13 +4,14 @@
     <vendor email="abanoub.maged171@gmail.com" url="https://www.github.com/abanoubseddik">GitHub</vendor>
 
     <description><![CDATA[
-        A PyCharm plugin that displays the type of the variable under the caret in the status bar.
+        A PyCharm plugin that displays the type of the variable under the caret in the status bar and on hover.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.python</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <statusBarWidgetFactory implementation="org.example.pycharmvariabletypestatus.VariableTypeStatusBarFactory"/>
+        <statusBarWidgetFactory id="VariableTypeStatusBar"
+                implementation="org.example.pycharmvariabletypestatus.VariableTypeStatusBarFactory"/>
     </extensions>
 </idea-plugin>
