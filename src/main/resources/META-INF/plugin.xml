@@ -13,5 +13,8 @@
     <extensions defaultExtensionNs="com.intellij">
         <statusBarWidgetFactory id="VariableTypeStatusBar"
                 implementation="org.example.pycharmvariabletypestatus.VariableTypeStatusBarFactory"/>
+        <codeInsight.inlayProvider language="Python"
+                                   implementationClass="org.example.pycharmvariabletypestatus.PythonInlineTypeAnnotationsProvider"/>
+
     </extensions>
 </idea-plugin>
